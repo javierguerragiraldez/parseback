@@ -335,10 +335,26 @@ do
 end
 
 do
+	local function ispos(n)
+		return n and n ~= 0 and n or nil
+	end
+
+	local function q(s)
+		return s and s ~= '' and "'"..s.."'" or ''
+	end
+
+	local function flags(t)
+		local o = {}
+		for k, v in pairs(t) do
+			if v then o[#o+1] = k end
+		end
+		return table.concat(o, ', ')
+	end
+
 	local function graph(ct, g)
 		g = g or {}
 		ct = tonumber(ct)
-		if not ct or ct == '0' then return nil end
+		if not ispos(ct) then return nil end
 
 		if not g[ct] then
 			local ti = fulltypeinfo(ct)
@@ -353,16 +369,42 @@ do
 	end
 
 	function ParseBack.dot(ct)
+		local title
+		if type(ct) == 'string' then
+			title = ct
+			ct = ffi.typeof(ct)
+		end
 		local _, g = graph(ct)
-		local o = {'digraph ct {'}
+		local o = {
+			'digraph ct {',
+			'fontname="monospace";',
+			title and ('\tlabelloc=t; label="%s";'):format(title),
+		}
 		for k, v in pairs(g) do
-			o[#o+1] = ('\tct_%s [shape=record, label="{#%d: %s %s|{{name: %s|size/offset: %d}|<cid>cid:%d|<sib>sib:%d}}"];')
-				:format(k, k, v.ti.infoflds.type_sym,
-					v.ti.infoflds.attrib and ATTR[v.ti.infoflds.attrib] or '',
-					v.ti.name or '', v.ti.size,
-					v.cid and v.cid.ct or 0,
-					v.sib and v.sib.ct or 0
-				)
+			o[#o+1] = ([[
+	ct_%s [shape=record,
+		label="{
+			#%d: %s %s %s|
+			{
+				{%s: %d|%s}
+				|<cid>cid:%d
+				|<sib>sib:%d
+			}
+		}"];]]
+			):format(k, k, v.ti.infoflds.type_sym,
+				v.ti.infoflds.type_sym == 'CT_ATTRIB'
+					and ispos(v.ti.infoflds.attrib)
+					and ATTR[v.ti.infoflds.attrib]
+				or '',
+				q(v.ti.name),
+				v.ti.infoflds.type_sym == 'CT_CONSTVAL' and 'value'
+					or v.ti.infoflds.type_sym == 'CT_FIELD' and 'offset'
+					or 'size',
+				v.ti.size or 0,
+				flags(v.ti.infoflds.flags),
+				v.cid and v.cid.ct or 0,
+				v.sib and v.sib.ct or 0
+			)
 			if v.cid then
 				o[#o+1] = ('\tct_%s:cid -> ct_%s;'):format(k, v.cid.ct)
 			end
