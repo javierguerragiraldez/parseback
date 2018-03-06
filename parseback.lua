@@ -334,4 +334,46 @@ do
 	end
 end
 
+do
+	local function graph(ct, g)
+		g = g or {}
+		ct = tonumber(ct)
+		if not ct or ct == '0' then return nil end
+
+		if not g[ct] then
+			local ti = fulltypeinfo(ct)
+			g[ct] = ti and {
+				ct = ct,
+				ti = ti,
+				cid = graph(ti.infoflds.cid, g),
+				sib = graph(ti.sib, g),
+			}
+		end
+		return g[ct], g
+	end
+
+	function ParseBack.dot(ct)
+		local _, g = graph(ct)
+		local o = {'digraph ct {'}
+		for k, v in pairs(g) do
+			o[#o+1] = ('\tct_%s [shape=record, label="{#%d: %s %s|{{name: %s|size/offset: %d}|<cid>cid:%d|<sib>sib:%d}}"];')
+				:format(k, k, v.ti.infoflds.type_sym,
+					v.ti.infoflds.attrib and ATTR[v.ti.infoflds.attrib] or '',
+					v.ti.name or '', v.ti.size,
+					v.cid and v.cid.ct or 0,
+					v.sib and v.sib.ct or 0
+				)
+			if v.cid then
+				o[#o+1] = ('\tct_%s:cid -> ct_%s;'):format(k, v.cid.ct)
+			end
+			if v.sib then
+				o[#o+1] = ('\tct_%s -> ct_%s;'):format(k, v.sib.ct)
+				o[#o+1] = ('\t{rank=same; ct_%s ct_%s};'):format(k, v.sib.ct)
+			end
+		end
+		o[#o+1] = '}'
+		return table.concat(o, '\n')
+	end
+end
+
 return ParseBack
