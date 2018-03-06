@@ -343,12 +343,30 @@ do
 		return s and s ~= '' and "'"..s.."'" or ''
 	end
 
-	local function flags(t)
-		local o = {}
-		for k, v in pairs(t) do
-			if v then o[#o+1] = k end
+	local flags do
+		local relevant = {
+			CT_NUM = {bool=true, fp=true, const=true, volatile=true, usigned=true, long=true},
+			CT_STRUCT = {union=true},
+			CT_PTR = {ref=true},
+			CT_ARRAY = {complex=true},
+			CT_VOID = {const=true},
+			CT_ENUM = {},
+			CT_FUNC = {vararg=true},
+			CT_TYPEDEF = {},
+			CT_ATTRIB = {},
+			CT_FIELD = {const=true},
+			CT_BITFIELD = {bool=true, const=true, unsigned=true, long=true},
+			CT_CONSTVAL = {},
+			CT_KW = {},
+		}
+
+		function flags(f, typ)
+			local o = {}
+			for k, v in pairs(f) do
+				if v and relevant[typ][k] then o[#o+1] = k end
+			end
+			return table.concat(o, ', ')
 		end
-		return table.concat(o, ', ')
 	end
 
 	local function graph(ct, g)
@@ -365,7 +383,7 @@ do
 				sib = graph(ti.sib, g),
 			}
 		end
-		return g[ct], g
+		return g[ct]
 	end
 
 	function ParseBack.dot(ct)
@@ -374,24 +392,27 @@ do
 			title = ct
 			ct = ffi.typeof(ct)
 		end
-		local _, g = graph(ct)
 		local o = {
 			'digraph ct {',
 			'fontname="monospace";',
+-- 			'ordering="out";',
 			title and ('\tlabelloc=t; label="%s";'):format(title),
 		}
-		for k, v in pairs(g) do
+		local seen = {}
+		local function nodetodot(v)
+			if not v then return end
+			if seen[v] then return end
+			seen[v] = true
 			o[#o+1] = ([[
-	ct_%s [shape=record,
-		label="{
-			#%d: %s %s %s|
-			{
-				{%s: %d|%s}
-				|<cid>cid:%d
-				|<sib>sib:%d
-			}
-		}"];]]
-			):format(k, k, v.ti.infoflds.type_sym,
+	ct_%s [shape=record, label="{
+		#%d: %s %s %s|
+		{
+			{%s: %d|%s}
+			|<cid>cid:%d
+			|<sib>sib:%d
+		}
+	}"];]]
+			):format(v.ct, v.ct, v.ti.infoflds.type_sym,
 				v.ti.infoflds.type_sym == 'CT_ATTRIB'
 					and ispos(v.ti.infoflds.attrib)
 					and ATTR[v.ti.infoflds.attrib]
@@ -401,18 +422,23 @@ do
 					or v.ti.infoflds.type_sym == 'CT_FIELD' and 'offset'
 					or 'size',
 				v.ti.size or 0,
-				flags(v.ti.infoflds.flags),
+				flags(v.ti.infoflds.flags, v.ti.infoflds.type_sym),
 				v.cid and v.cid.ct or 0,
 				v.sib and v.sib.ct or 0
 			)
 			if v.cid then
-				o[#o+1] = ('\tct_%s:cid -> ct_%s;'):format(k, v.cid.ct)
+				o[#o+1] = ('\tct_%s:cid -> ct_%s;'):format(v.ct, v.cid.ct)
+				nodetodot(v.cid, o)
 			end
 			if v.sib then
-				o[#o+1] = ('\tct_%s -> ct_%s;'):format(k, v.sib.ct)
-				o[#o+1] = ('\t{rank=same; ct_%s ct_%s};'):format(k, v.sib.ct)
+				o[#o+1] = ('\tct_%s -> ct_%s;'):format(v.ct, v.sib.ct)
+				o[#o+1] = ('\t{rank=same; ct_%s ct_%s};'):format(v.ct, v.sib.ct)
+				nodetodot(v.sib, o)
 			end
 		end
+
+		local node = graph(ct)
+		nodetodot(node)
 		o[#o+1] = '}'
 		return table.concat(o, '\n')
 	end
