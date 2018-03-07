@@ -345,7 +345,7 @@ do
 
 	local flags do
 		local relevant = {
-			CT_NUM = {bool=true, fp=true, const=true, volatile=true, usigned=true, long=true},
+			CT_NUM = {bool=true, fp=true, const=true, volatile=true, unsigned=true, long=true},
 			CT_STRUCT = {union=true},
 			CT_PTR = {ref=true},
 			CT_ARRAY = {complex=true},
@@ -386,7 +386,7 @@ do
 		return g[ct]
 	end
 
-	function ParseBack.dot(ct)
+	function ParseBack.dot(ct, horizgroups)
 		local title
 		if type(ct) == 'string' then
 			title = ct
@@ -405,7 +405,7 @@ do
 			seen[v] = true
 			o[#o+1] = ([[
 	ct_%s [shape=record, label="{
-		#%d: %s %s %s|
+		<head>#%d: %s %s %s|
 		{
 			{%s: %d|%s}
 			|<cid>cid:%d
@@ -427,12 +427,16 @@ do
 				v.sib and v.sib.ct or 0
 			)
 			if v.cid then
-				o[#o+1] = ('\tct_%s:cid -> ct_%s;'):format(v.ct, v.cid.ct)
+				o[#o+1] = ('\tct_%s:cid -> ct_%s:head:c [weight=0];'):format(v.ct, v.cid.ct)
 				nodetodot(v.cid, o)
 			end
 			if v.sib then
-				o[#o+1] = ('\tct_%s -> ct_%s;'):format(v.ct, v.sib.ct)
-				o[#o+1] = ('\t{rank=same; ct_%s ct_%s};'):format(v.ct, v.sib.ct)
+				if horizgroups then
+					o[#o+1] = ('\tct_%s -> ct_%s [weight=10, style=bold];'):format(v.ct, v.sib.ct)
+					o[#o+1] = ('\t{rank=same; ct_%s ct_%s};'):format(v.ct, v.sib.ct)
+				else
+					o[#o+1] = ('\tct_%s:sib:e -> ct_%s:w [weight=10, style=bold];'):format(v.ct, v.sib.ct)
+				end
 				nodetodot(v.sib, o)
 			end
 		end

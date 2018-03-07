@@ -20,7 +20,7 @@ ffi.cdef [[
 ]]
 
 
-print (ParseBack.dot('union {struct {int x, y;}; long il; struct {Point px; union blurb bl;} st;}[5]'))
--- print (ParseBack.dot('enum twoenums'))
--- print (ParseBack.dot('getit'))
--- print (ParseBack.dot(33))
+-- print (ParseBack.dot('union {struct {int x, y;}; long il; struct {Point px; union blurb bl;} st;}[5]'))
+-- print (ParseBack.dot('enum twoenums', true))
+-- print (ParseBack.dot('getit', true))
+print (ParseBack.dot(33))
