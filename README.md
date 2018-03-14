@@ -1,7 +1,7 @@
 parseback
 ===
 
-In LuaJIT's FFI, ctype objects carry C data structures and functions.  Unfortunately, while there are several functions to handle and compose ctype objects.  This library inspects the information provided by `ffi.typeinfo()` to recreate useful descriptions of ctype objects.
+In LuaJIT's FFI, ctype objects carry C data structures and functions.  Unfortunately, while there are several functions to handle and compose ctype objects, there's very little introspection capabilities.  This library inspects the information provided by `ffi.typeinfo()` to recreate useful descriptions of ctype objects, as Lua tables, C declarations and GraphViz diagrams.
 
 
 Installation
@@ -30,5 +30,5 @@ Returns a table tree describing the given type.  Some of the fields appear only 
 
 ### `parseback.asdot(ct [, horizgroups])`
 
-Creates a diagram of the whole type structure in the 'dot' language, to be processed by Graphviz utilities.  The optional `horizgroups` flag makes the elements joined by 'sib' links to align horizonally.  I find it much easier to understand, but works only for relatively simple structures, complex graphs get hopelessly mangled.  For the general case, leave the flag out; the resultant graph is much more vertical but should be far cleaner.
+Creates a diagram of the whole type structure in the 'dot' language, to be processed by GraphViz utilities.  The optional `horizgroups` flag makes the elements joined by 'sib' links to align horizonally.  I find it much easier to understand, but works only for relatively simple structures, complex graphs get hopelessly mangled.  For the general case, leave the flag out; the resultant graph is much more vertical but should be far cleaner.
 
