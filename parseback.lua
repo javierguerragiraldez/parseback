@@ -38,8 +38,63 @@ local fulltypeinfo do
 		return bit.band(bit.rshift(x, shft), msk)
 	end
 
-	local function flag(x, msk)
-		return bit.band(x, msk) ~= 0
+	local flags do
+		local relevant = {
+			CT_NUM = {
+				bool     = 0x08000000,
+				fp       = 0x04000000,
+				const    = 0x02000000,
+				volatile = 0x01000000,
+				unsigned = 0x00800000,
+				long     = 0x00400000,
+			},
+			CT_STRUCT = {
+				const    = 0x02000000,
+				volatile = 0x01000000,
+				union    = 0x00800000,
+				vla      = 0x00100000,
+			},
+			CT_PTR = {
+				const    = 0x02000000,
+				volatile = 0x01000000,
+				ref      = 0x00800000,
+			},
+			CT_ARRAY = {
+				vector   = 0x08000000,
+				complex  = 0x04000000,
+				const    = 0x02000000,
+				volatile = 0x01000000,
+				vla      = 0x00100000,
+			},
+			CT_VOID = {
+				const    = 0x02000000,
+				volatile = 0x01000000,
+			},
+			CT_ENUM = {},
+			CT_FUNC = {
+				vararg     = 0x00800000,
+				sseregparm = 0x00400000,
+			},
+			CT_TYPEDEF = {},
+			CT_ATTRIB = {},
+			CT_FIELD = {const = 0x02000000},
+			CT_BITFIELD = {
+				bool     = 0x08000000,
+				const    = 0x02000000,
+				volatile = 0x01000000,
+				unsigned = 0x00800000,
+			},
+			CT_CONSTVAL = {const = 0x02000000},
+			CT_KW = {},
+		}
+
+		function flags(f, typ)
+			local o = {}
+			for k, v in pairs(relevant[typ]) do
+				o[k] = bit.band(f, v) ~= 0 or nil
+			end
+			return o
+		end
 	end
 
 	function fulltypeinfo(ct)
@@ -47,9 +102,10 @@ local fulltypeinfo do
 		if not ti then return ti end
 
 		local info = ti.info
+		local type_sym = CT[bit.rshift(info, 28)]
 		ti.infoflds = {
 			type = bit.rshift(info, 28),	-- CTSHIFT_NUM
-			type_sym = CT[bit.rshift(info, 28)],
+			type_sym = type_sym,
 			cid = bit.band(info, 0x0000ffff),	-- CTMASK_CID
 			align = fld(info, 16, 15),	-- CTSHIFT_ALIGN, CTMASK_ALIGN
 			attrib = fld(info, 16, 255),	-- CTSHIFT_ATTRIB, CTMASK_ATTRIB
@@ -59,21 +115,7 @@ local fulltypeinfo do
 			vsizeP = fld(info, 4, 15),	-- CTSHIFT_VSIZEP, CTMASK_VSIZEP
 			msizeP = fld(info, 8, 255),	-- CTSHIFT_MSIZEP, CTMASK_MSIZEP
 			cconv = fld(info, 16, 3),	-- CTSHIFT_CCONV, CTMASK_CCONV
-			flags = {
-				bool       = flag(info, 0x08000000),	-- CTF_BOOL
-				fp         = flag(info, 0x04000000),	-- CTF_FP
-				const      = flag(info, 0x02000000),	-- CTF_CONST
-				volatile   = flag(info, 0x01000000),	-- CTF_VOLATILE
-				unsigned   = flag(info, 0x00800000),	-- CTF_UNSIGNED
-				long       = flag(info, 0x00400000),	-- CTF_LONG
-				vla        = flag(info, 0x00100000),	-- CTF_VLA
-				ref        = flag(info, 0x00800000),	-- CTF_REF
-				vector     = flag(info, 0x08000000),	-- CTF_VECTOR
-				complex    = flag(info, 0x04000000),	-- CTF_COMPLEX
-				union      = flag(info, 0x00800000),	-- CTF_UNION
-				vararg     = flag(info, 0x00800000),	-- CTF_VARARG
-				sseregparm = flag(info, 0x00400000),	-- CTF_SSEREGPARM
-			}
+			flags = flags(info, type_sym)
 		}
 		return ti
 	end
@@ -339,34 +381,12 @@ do
 		return n and n ~= 0 and n or nil
 	end
 
-	local function q(s)
-		return s and s ~= '' and "'"..s.."'" or ''
-	end
-
-	local flags do
-		local relevant = {
-			CT_NUM = {bool=true, fp=true, const=true, volatile=true, unsigned=true, long=true},
-			CT_STRUCT = {union=true},
-			CT_PTR = {ref=true},
-			CT_ARRAY = {complex=true},
-			CT_VOID = {const=true},
-			CT_ENUM = {},
-			CT_FUNC = {vararg=true},
-			CT_TYPEDEF = {},
-			CT_ATTRIB = {},
-			CT_FIELD = {const=true},
-			CT_BITFIELD = {bool=true, const=true, unsigned=true, long=true},
-			CT_CONSTVAL = {},
-			CT_KW = {},
-		}
-
-		function flags(f, typ)
-			local o = {}
-			for k, v in pairs(f) do
-				if v and relevant[typ][k] then o[#o+1] = k end
-			end
-			return table.concat(o, ', ')
+	local function flags(f)
+		local o = {}
+		for k in pairs(f) do
+			o[#o+1] = k
 		end
+		return table.concat(o, ', ')
 	end
 
 	local function graph(ct, g)
@@ -395,7 +415,6 @@ do
 		local o = {
 			'digraph ct {',
 			'fontname="monospace";',
--- 			'ordering="out";',
 			title and ('\tlabelloc=t; label="%s";'):format(title),
 		}
 		local seen = {}
@@ -405,7 +424,7 @@ do
 			seen[v] = true
 			o[#o+1] = ([[
 	ct_%s [shape=record, label="{
-		<head>#%d: %s %s %s|
+		{<head>#%d: %s %s|%s}|
 		{
 			{%s: %d|%s}
 			|<cid>cid:%d
@@ -417,12 +436,12 @@ do
 					and ispos(v.ti.infoflds.attrib)
 					and ATTR[v.ti.infoflds.attrib]
 				or '',
-				q(v.ti.name),
+				v.ti.name or '',
 				v.ti.infoflds.type_sym == 'CT_CONSTVAL' and 'value'
 					or v.ti.infoflds.type_sym == 'CT_FIELD' and 'offset'
 					or 'size',
 				v.ti.size or 0,
-				flags(v.ti.infoflds.flags, v.ti.infoflds.type_sym),
+				flags(v.ti.infoflds.flags),
 				v.cid and v.cid.ct or 0,
 				v.sib and v.sib.ct or 0
 			)
